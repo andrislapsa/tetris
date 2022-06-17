@@ -1,0 +1,291 @@
+<html>
+  <head>
+    <style>
+      body {
+        font-size: 200%;
+      }
+      @media(prefers-color-scheme:dark){body{background-color:rgb(50,54,57);}}
+    </style>
+    <title>Tetris</title>
+  </head>
+  <body>
+    <script>
+const WIDTH = 10
+const HEIGHT = WIDTH * 2
+const EMPTY_BLOCK = ' '
+const SOLID_BLOCK = Math.round(Math.random()) ? 'O' : '#'
+const PIECES = [
+  [
+    SOLID_BLOCK,
+    SOLID_BLOCK,
+    SOLID_BLOCK,
+    SOLID_BLOCK,
+  ],
+  [
+    `${SOLID_BLOCK}${SOLID_BLOCK}`,
+    `${SOLID_BLOCK}${SOLID_BLOCK}`,
+  ],
+  [
+    `${SOLID_BLOCK} `,
+    `${SOLID_BLOCK} `,
+    `${SOLID_BLOCK}${SOLID_BLOCK}`,
+  ],
+  [
+    `${SOLID_BLOCK}${SOLID_BLOCK} `,
+    ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
+  ],
+  [
+    ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
+    `${SOLID_BLOCK}${SOLID_BLOCK} `,
+  ],
+  [
+    ` ${SOLID_BLOCK}`,
+    ` ${SOLID_BLOCK}`,
+    `${SOLID_BLOCK}${SOLID_BLOCK}`,
+  ],
+  [
+    `${SOLID_BLOCK} `,
+    `${SOLID_BLOCK}${SOLID_BLOCK}`,
+    `${SOLID_BLOCK} `,
+  ],
+]
+
+const getRandomPiece = () => PIECES[Math.floor(Math.random() * PIECES.length)]
+
+const getGrid = () => new Array(HEIGHT).fill(undefined).map(a => new Array(WIDTH).fill(EMPTY_BLOCK))
+
+function drawPiece(grid, piece, x, y, clear = false) {
+  for (lineIndex in piece) {
+    const line = piece[lineIndex].split('')
+
+    for (rowIndex in line) {
+      const gridY = parseInt(lineIndex) + y
+      const gridX = parseInt(rowIndex) + x
+
+      if (grid[gridY] === undefined || grid[gridX] === undefined) {
+        continue
+      }
+
+      if (piece[lineIndex][rowIndex] === EMPTY_BLOCK) {
+        continue
+      }
+      
+      grid[gridY][gridX] = clear ? EMPTY_BLOCK : piece[lineIndex][rowIndex]
+    }
+  }
+
+  return grid
+}
+
+function rotatePiece(piece, flipX, flipY) {
+  const result = new Array(piece[0].length).fill().map(a => new Array(piece.length).fill())
+  for (lineIdx in piece) {
+    const rows = piece[lineIdx].split('')
+    for (rowIdx in rows) {
+      result[rowIdx][lineIdx] = rows[rowIdx]
+    }
+  }
+  
+  return result.map(line => line.reverse().join(''))
+}
+
+function collides(grid, piece, x, y) {
+  if (y + piece.length > grid.length - 1) {
+    return true
+  }
+
+  const reversedPiece = [...piece].reverse()
+
+  for (const pieceKey in reversedPiece) {
+    const lineOfPiece = reversedPiece[pieceKey]
+    const lineOnBottomOfPiece = grid[y + piece.length - parseInt(pieceKey)]
+    // console.log('is something at this line', lineOnBottomOfPiece, { pieceKey })
+    for (const key in lineOfPiece) {
+      if (lineOfPiece[key] === EMPTY_BLOCK) {
+        continue
+      }
+
+      const xPos = parseInt(key) + x
+      const isCollision = lineOnBottomOfPiece && lineOnBottomOfPiece[xPos] !== EMPTY_BLOCK
+      // console.log('checking line against piece', { xPos, char: lineOfPiece[key], lineOfPiece, lineOnBottomOfPiece: lineOnBottomOfPiece?.join(''), isCollision })
+
+      if (isCollision) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+function flushLines(grid) {
+  const result = grid.filter((line) => !line.every(char => char === SOLID_BLOCK))
+  const linesFlushed = HEIGHT - result.length
+
+  if (linesFlushed > 0) {
+    const multiplier = linesFlushed * 10
+    score += linesFlushed * multiplier
+
+    const gridPadding = getGrid().slice(0, linesFlushed)
+
+    return [...gridPadding, ...result]
+  }
+
+  return result
+}
+
+function renderGrid(grid) {
+  // console.log(grid)
+  const gridString = grid.map(line => line.join('')).join('\n')
+  output.innerHTML = gridString
+
+  stats.innerHTML = `score: ${score}`
+}
+
+function mergeGrids(grid1, grid2) {
+  const result = grid1
+    .map((line, lineIdx) =>
+      line.map((row, rowIdx) =>
+        grid2[lineIdx][rowIdx] !== EMPTY_BLOCK ? grid2[lineIdx][rowIdx] : row)
+      )
+
+  // console.log('merging grids', { grid1, grid2, result })
+
+  return result
+}
+
+let score = -1
+let bgGrid = getGrid()
+let fgGrid
+let currentPiece
+let currentPieceX
+let currentPieceY
+let flipX
+let flipY
+let run = true
+
+function initPiece() {
+  score++
+  currentPiece = getRandomPiece()
+  currentPieceX = WIDTH / 2 - 2
+  currentPieceY = -1
+  fgGrid = getGrid()
+  flipX = false
+  flipY= true
+}
+
+function tick() {
+  if (!run) {
+    return
+  }
+
+  const oldY = currentPieceY
+  const oldX = currentPieceX
+  
+  currentPieceY++
+  
+  try {
+    fgGrid = drawPiece(fgGrid, currentPiece, oldX, oldY, true)
+    fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+
+    // console.log({ bgGrid: bgGrid.map(a => a.join('')), fgGrid: fgGrid.map(a => a.join('')) })
+    // console.log({ bgGrid, fgGrid })
+
+    if (collides(bgGrid, currentPiece, currentPieceX, currentPieceY)) {
+      bgGrid = drawPiece(bgGrid, currentPiece, currentPieceX, currentPieceY)
+      initPiece()
+      bgGrid = flushLines(bgGrid)
+    }
+
+    renderGrid(mergeGrids(fgGrid, bgGrid))
+  } catch (e) {
+    clearInterval(tickerTimer)
+    throw e
+  }
+
+  window.tickerTimer = setTimeout(tick, 500)
+}
+
+function cleanupOldInstance() {
+  document.body.innerHTML = ''
+  document.body.style.backgroundColor = '#fff'
+  document.body.style.margin = ''
+  document.body.style.padding = ''
+  document.body.style.textAlign = 'center'
+  clearTimeout(window.tickerTimer)
+
+  // const listeners = getEventListeners(window).keydown;
+
+  // if (!listeners) {
+  //   return
+  // }
+  
+  // let l = listeners.length;
+  // for (let i = l-1; i >=0; i--){
+  //   removeEventListener('keydown', listeners[i].listener);
+  // }
+}
+
+cleanupOldInstance()
+
+const output = document.createElement('pre')
+output.style.lineHeight = '.611'
+output.style.fontSize = '250%'
+output.style.display = 'inline-block'
+output.style.border = '1px solid #ccc'
+output.style.margin = '10px 0 0'
+document.body.appendChild(output)
+
+const stats = document.createElement('pre')
+document.body.appendChild(stats)
+
+initPiece()
+tick()
+
+window.addEventListener('keydown', ({ key }) => {
+  const control = key.toLowerCase()
+
+  if (!['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p'].includes(control)) {
+    return
+  }
+
+  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
+
+  if (control === 'arrowup') {
+    currentPiece = rotatePiece(currentPiece, flipX, flipY)
+    flipX = !flipX
+    flipY = !flipY
+
+    if (currentPieceX + currentPiece[0].length > WIDTH) {
+      currentPieceX--
+    }
+  }
+
+  if (control === 'arrowdown' && currentPieceY + currentPiece.length + 1 < HEIGHT) {
+    if (!collides(bgGrid, currentPiece, currentPieceX, currentPieceY + 1)) {
+      currentPieceY++
+    }
+  }
+  
+  if (control === 'arrowleft' && currentPieceX > 0) {
+    currentPieceX--
+  }
+
+  if (control === 'arrowright' && currentPieceX + currentPiece[0].length < WIDTH) {
+    currentPieceX++
+  }
+
+  if (control === 'p') {
+    run = !run
+    console.log('toggling run', run)
+    if (run) {
+      tick()
+    }
+  }
+
+  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+  renderGrid(mergeGrids(fgGrid, bgGrid))
+})
+    </script>
+  </body>
+</html>
