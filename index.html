@@ -245,14 +245,35 @@ tick()
 document.addEventListener("touchstart", touchHandler);
 document.addEventListener("touchmove", touchHandler);
 
+let touchedXBy = 0
+let pieceMoved = false
 function touchHandler(e) {
   if(e.touches) {
     // playerX = e.touches[0].pageX - canvas.offsetLeft - playerWidth / 2;
-    currentPieceX += Math.round((e.touches[0].pageX - canvas.offsetLeft) / 5);
+    touchedXBy = Math.round((e.touches[0].pageX - canvas.offsetLeft) / 5);
+    
+    pieceMoved = touchedXBy || pieceMoved
+    currentPieceX += touchedXBy
     // output.textContent = `Touch:  x: ${playerX}, y: ${playerY}`;
+    
     e.preventDefault();
   }
 }
+
+document.addEventListener('touchend', () => {
+  if (pieceMoved) {
+    currentPiece = rotatePiece(currentPiece, flipX, flipY)
+    flipX = !flipX
+    flipY = !flipY
+
+    if (currentPieceX + currentPiece[0].length > WIDTH) {
+      currentPieceX--
+    }
+  }
+
+  pieceMoved = false
+  touchedXBy = 0
+})
 
 
 window.addEventListener('keydown', ({ key }) => {
