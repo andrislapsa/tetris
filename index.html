@@ -14,6 +14,7 @@ const WIDTH = 10
 const HEIGHT = WIDTH * 2
 const EMPTY_BLOCK = ' '
 const SOLID_BLOCK = Math.round(Math.random()) ? 'O' : '#'
+const scoreAnimal = SOLID_BLOCK === 'O' ? '🦦' : '🦥' 
 const PIECES = [
   [
     SOLID_BLOCK,
@@ -139,7 +140,7 @@ function renderGrid(grid) {
   const gridString = grid.map(line => line.join('')).join('\n')
   output.innerHTML = gridString
 
-  stats.innerHTML = `score: ${score} 🙀`
+  stats.innerHTML = `score: ${score} ${scoreAnimal}`
 }
 
 function mergeGrids(grid1, grid2) {
@@ -243,26 +244,54 @@ initPiece()
 tick()
 
 
+let touchXStart = 0
+let touchYStart = 0
 let touchedXBy = 0
+let touchedYBy = 0
 let pieceMoved = false
-function touchHandler(e) {
-  if(e.touches) {
-    // playerX = e.touches[0].pageX - canvas.offsetLeft - playerWidth / 2;
-    touchedXBy = Math.max(Math.round((e.touches[0].pageX - output.offsetLeft) / 5), 1);
-    
-    pieceMoved = touchedXBy || pieceMoved
-    currentPieceX += touchedXBy
-    // output.textContent = `Touch:  x: ${playerX}, y: ${playerY}`;
-    
-    e.preventDefault();
-  }
-}
 
-document.addEventListener("touchstart", touchHandler);
-document.addEventListener("touchmove", touchHandler);
+const TOUCH_SENSITIVITY = 50
+
+document.addEventListener("touchstart", (e) => {
+  e.preventDefault()
+  touchXStart = e.touches[0].pageX
+  touchYStart = e.touches[0].pageY
+}, { passive: false });
+
+document.addEventListener("touchmove", (e) => {
+  e.preventDefault()
+  const pageX = e.touches[0].pageX
+  const pageY = e.touches[0].pageY
+  touchedXBy = Math.round((pageX - touchXStart) / TOUCH_SENSITIVITY)
+  touchedYBy = Math.round((pageY - touchYStart) / TOUCH_SENSITIVITY)
+  pieceMoved = touchedXBy || pieceMoved
+
+  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
+
+  if (touchedXBy < 0 && currentPieceX > 0) {
+    currentPieceX--
+  }
+
+  if (touchedXBy > 0 && currentPieceX + currentPiece[0].length < WIDTH) {
+    currentPieceX++
+  }
+
+  if (touchedYBy > 0 && !collides(bgGrid, currentPiece, currentPieceX, currentPieceY + 1)) {
+    currentPieceY++
+  }
+
+  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+  renderGrid(mergeGrids(fgGrid, bgGrid))
+  console.log({ touchXStart, touchedXBy, pageX })
+
+  touchXStart = pageX
+  touchYStart = pageY
+}, { passive: false });
 
 document.addEventListener('touchend', () => {
   if (!pieceMoved) {
+    fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
+
     currentPiece = rotatePiece(currentPiece, flipX, flipY)
     flipX = !flipX
     flipY = !flipY
@@ -270,6 +299,9 @@ document.addEventListener('touchend', () => {
     if (currentPieceX + currentPiece[0].length > WIDTH) {
       currentPieceX--
     }
+
+    fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+    renderGrid(mergeGrids(fgGrid, bgGrid))
   }
 
   pieceMoved = false
