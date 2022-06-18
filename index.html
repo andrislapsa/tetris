@@ -242,6 +242,19 @@ document.body.appendChild(stats)
 initPiece()
 tick()
 
+document.addEventListener("touchstart", touchHandler);
+document.addEventListener("touchmove", touchHandler);
+
+function touchHandler(e) {
+  if(e.touches) {
+    // playerX = e.touches[0].pageX - canvas.offsetLeft - playerWidth / 2;
+    currentPieceX += Math.round((e.touches[0].pageX - canvas.offsetLeft) / 5);
+    // output.textContent = `Touch:  x: ${playerX}, y: ${playerY}`;
+    e.preventDefault();
+  }
+}
+
+
 window.addEventListener('keydown', ({ key }) => {
   const control = key.toLowerCase()
 
