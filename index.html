@@ -249,6 +249,7 @@ let touchYStart = 0
 let touchedXBy = 0
 let touchedYBy = 0
 let pieceMoved = false
+let movingDimension = ''
 
 const TOUCH_MOVE_THRESHOLD = 30
 
@@ -268,16 +269,19 @@ document.addEventListener("touchmove", (e) => {
 
   fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
 
-  if (touchedXBy < 0 && currentPieceX + touchedXBy + 1 > 0) {
+  if ((!movingDimension || movingDimension === 'x') && touchedXBy < 0 && currentPieceX + touchedXBy + 1 > 0) {
     currentPieceX += touchedXBy
+    movingDimension = 'x'
   }
 
-  if (touchedXBy > 0 && currentPieceX + currentPiece[0].length + touchedXBy - 1 < WIDTH) {
+  if ((!movingDimension || movingDimension === 'x') && touchedXBy > 0 && currentPieceX + currentPiece[0].length + touchedXBy - 1 < WIDTH) {
     currentPieceX += touchedXBy
+    movingDimension = 'x'
   }
 
-  if (touchedYBy > 0 && !collides(bgGrid, currentPiece, currentPieceX, currentPieceY + touchedYBy)) {
+  if ((!movingDimension || movingDimension === 'y') && touchedYBy > 0 && !collides(bgGrid, currentPiece, currentPieceX, currentPieceY + touchedYBy)) {
     currentPieceY += touchedYBy
+    movingDimension = 'y'
   }
 
   fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
@@ -307,6 +311,7 @@ document.addEventListener('touchend', () => {
 
   pieceMoved = false
   touchedXBy = 0
+  movingDimension = ''
 })
 
 
