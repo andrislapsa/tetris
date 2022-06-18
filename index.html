@@ -264,7 +264,7 @@ document.addEventListener("touchmove", (e) => {
   const pageY = e.touches[0].pageY
   touchedXBy = Math.round((pageX - touchXStart) / TOUCH_SENSITIVITY)
   touchedYBy = Math.round((pageY - touchYStart) / TOUCH_SENSITIVITY)
-  pieceMoved = touchedXBy || pieceMoved
+  pieceMoved = touchedXBy || touchedYBy || pieceMoved
 
   fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
 
