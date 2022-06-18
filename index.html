@@ -139,7 +139,7 @@ function renderGrid(grid) {
   const gridString = grid.map(line => line.join('')).join('\n')
   output.innerHTML = gridString
 
-  stats.innerHTML = `score: ${score} 🐝`
+  stats.innerHTML = `score: ${score} 🙀`
 }
 
 function mergeGrids(grid1, grid2) {
@@ -248,7 +248,7 @@ let pieceMoved = false
 function touchHandler(e) {
   if(e.touches) {
     // playerX = e.touches[0].pageX - canvas.offsetLeft - playerWidth / 2;
-    touchedXBy = Math.round((e.touches[0].pageX - output.offsetLeft) / 5);
+    touchedXBy = Math.max(Math.round((e.touches[0].pageX - output.offsetLeft) / 5), 1);
     
     pieceMoved = touchedXBy || pieceMoved
     currentPieceX += touchedXBy
