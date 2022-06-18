@@ -2,7 +2,7 @@
   <head>
     <style>
       body {
-        font-size: 200%;
+        font-size: 2vh;
       }
       @media(prefers-color-scheme:dark){body{background-color:rgb(50,54,57);}}
     </style>
@@ -10,7 +10,7 @@
   </head>
   <body>
     <script>
-const WIDTH = 10
+const WIDTH = 12
 const HEIGHT = WIDTH * 2
 const EMPTY_BLOCK = ' '
 const SOLID_BLOCK = Math.round(Math.random()) ? 'O' : '#'
@@ -250,7 +250,7 @@ let touchedXBy = 0
 let touchedYBy = 0
 let pieceMoved = false
 
-const TOUCH_SENSITIVITY = 50
+const TOUCH_MOVE_THRESHOLD = 30
 
 document.addEventListener("touchstart", (e) => {
   e.preventDefault()
@@ -262,30 +262,31 @@ document.addEventListener("touchmove", (e) => {
   e.preventDefault()
   const pageX = e.touches[0].pageX
   const pageY = e.touches[0].pageY
-  touchedXBy = Math.round((pageX - touchXStart) / TOUCH_SENSITIVITY)
-  touchedYBy = Math.round((pageY - touchYStart) / TOUCH_SENSITIVITY)
+  touchedXBy = Math.round((pageX - touchXStart) / TOUCH_MOVE_THRESHOLD)
+  touchedYBy = Math.round((pageY - touchYStart) / TOUCH_MOVE_THRESHOLD)
   pieceMoved = touchedXBy || touchedYBy || pieceMoved
 
   fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
 
-  if (touchedXBy < 0 && currentPieceX > 0) {
-    currentPieceX--
+  if (touchedXBy < 0 && currentPieceX + touchedXBy + 1 > 0) {
+    currentPieceX += touchedXBy
   }
 
-  if (touchedXBy > 0 && currentPieceX + currentPiece[0].length < WIDTH) {
-    currentPieceX++
+  if (touchedXBy > 0 && currentPieceX + currentPiece[0].length + touchedXBy - 1 < WIDTH) {
+    currentPieceX += touchedXBy
   }
 
-  if (touchedYBy > 0 && !collides(bgGrid, currentPiece, currentPieceX, currentPieceY + 1)) {
-    currentPieceY++
+  if (touchedYBy > 0 && !collides(bgGrid, currentPiece, currentPieceX, currentPieceY + touchedYBy)) {
+    currentPieceY += touchedYBy
   }
 
   fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
   renderGrid(mergeGrids(fgGrid, bgGrid))
-  console.log({ touchXStart, touchedXBy, pageX })
+  // console.log({ touchXStart, touchedXBy, pageX })
 
-  touchXStart = pageX
-  touchYStart = pageY
+  touchXStart = touchedXBy ? pageX : touchXStart
+  touchYStart = touchedYBy ? pageY : touchYStart
+  
 }, { passive: false });
 
 document.addEventListener('touchend', () => {
