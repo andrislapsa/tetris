@@ -139,7 +139,7 @@ function renderGrid(grid) {
   const gridString = grid.map(line => line.join('')).join('\n')
   output.innerHTML = gridString
 
-  stats.innerHTML = `score: ${score} 🦦`
+  stats.innerHTML = `score: ${score} 🐝`
 }
 
 function mergeGrids(grid1, grid2) {
@@ -242,15 +242,13 @@ document.body.appendChild(stats)
 initPiece()
 tick()
 
-document.addEventListener("touchstart", touchHandler);
-document.addEventListener("touchmove", touchHandler);
 
 let touchedXBy = 0
 let pieceMoved = false
 function touchHandler(e) {
   if(e.touches) {
     // playerX = e.touches[0].pageX - canvas.offsetLeft - playerWidth / 2;
-    touchedXBy = Math.round((e.touches[0].pageX - canvas.offsetLeft) / 5);
+    touchedXBy = Math.round((e.touches[0].pageX - output.offsetLeft) / 5);
     
     pieceMoved = touchedXBy || pieceMoved
     currentPieceX += touchedXBy
@@ -260,8 +258,11 @@ function touchHandler(e) {
   }
 }
 
+document.addEventListener("touchstart", touchHandler);
+document.addEventListener("touchmove", touchHandler);
+
 document.addEventListener('touchend', () => {
-  if (pieceMoved) {
+  if (!pieceMoved) {
     currentPiece = rotatePiece(currentPiece, flipX, flipY)
     flipX = !flipX
     flipY = !flipY
