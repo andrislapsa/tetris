@@ -1,5 +1,6 @@
 <html>
   <head>
+    <meta charset="utf-8" />
     <style>
       body {
         font-size: 2vh;
@@ -13,8 +14,12 @@
 const WIDTH = 12
 const HEIGHT = WIDTH * 2
 const EMPTY_BLOCK = ' '
-const SOLID_BLOCK = Math.round(Math.random()) ? 'O' : '#'
-const scoreAnimal = SOLID_BLOCK === 'O' ? '🦦' : '🦥' 
+const SOLID_BLOCK = '▢' // ▦ ▣
+const scoreAnimal = '🐒'
+const MS_PER_TICK = 1000 / 60 // ms for 60FPS
+const TICKS_TILL_FALL = 40
+const TOUCH_MOVE_THRESHOLD = 100
+const FALL_SPEED = 40
 const PIECES = [
   [
     SOLID_BLOCK,
@@ -56,6 +61,7 @@ const getRandomPiece = () => PIECES[Math.floor(Math.random() * PIECES.length)]
 const getGrid = () => new Array(HEIGHT).fill(undefined).map(a => new Array(WIDTH).fill(EMPTY_BLOCK))
 
 function drawPiece(grid, piece, x, y, clear = false) {
+  const newGrid = [...grid.map(line => [...line])]
   for (lineIndex in piece) {
     const line = piece[lineIndex].split('')
 
@@ -63,7 +69,7 @@ function drawPiece(grid, piece, x, y, clear = false) {
       const gridY = parseInt(lineIndex) + y
       const gridX = parseInt(rowIndex) + x
 
-      if (grid[gridY] === undefined || grid[gridX] === undefined) {
+      if (newGrid[gridY] === undefined || newGrid[gridX] === undefined) {
         continue
       }
 
@@ -71,11 +77,11 @@ function drawPiece(grid, piece, x, y, clear = false) {
         continue
       }
       
-      grid[gridY][gridX] = clear ? EMPTY_BLOCK : piece[lineIndex][rowIndex]
+      newGrid[gridY][gridX] = clear ? EMPTY_BLOCK : piece[lineIndex][rowIndex]
     }
   }
 
-  return grid
+  return newGrid
 }
 
 function rotatePiece(piece, flipX, flipY) {
@@ -90,32 +96,14 @@ function rotatePiece(piece, flipX, flipY) {
   return result.map(line => line.reverse().join(''))
 }
 
-function collides(grid, piece, x, y) {
-  if (y + piece.length > grid.length - 1) {
-    return true
-  }
-
-  const reversedPiece = [...piece].reverse()
-
-  for (const pieceKey in reversedPiece) {
-    const lineOfPiece = reversedPiece[pieceKey]
-    const lineOnBottomOfPiece = grid[y + piece.length - parseInt(pieceKey)]
-    // console.log('is something at this line', lineOnBottomOfPiece, { pieceKey })
-    for (const key in lineOfPiece) {
-      if (lineOfPiece[key] === EMPTY_BLOCK) {
-        continue
-      }
-
-      const xPos = parseInt(key) + x
-      const isCollision = lineOnBottomOfPiece && lineOnBottomOfPiece[xPos] !== EMPTY_BLOCK
-      // console.log('checking line against piece', { xPos, char: lineOfPiece[key], lineOfPiece, lineOnBottomOfPiece: lineOnBottomOfPiece?.join(''), isCollision })
-
-      if (isCollision) {
+function collides(grid1, grid2) {
+  for (let y = 0; y < grid1.length; y++) {
+    for (let x = 0; x < grid1[y].length; x++) {
+      if (grid1[y][x] !== EMPTY_BLOCK && grid2[y][x] !== EMPTY_BLOCK) {
         return true
       }
     }
   }
-
   return false
 }
 
@@ -136,7 +124,6 @@ function flushLines(grid) {
 }
 
 function renderGrid(grid) {
-  // console.log(grid)
   const gridString = grid.map(line => line.join('')).join('\n')
   output.innerHTML = gridString
 
@@ -150,11 +137,10 @@ function mergeGrids(grid1, grid2) {
         grid2[lineIdx][rowIdx] !== EMPTY_BLOCK ? grid2[lineIdx][rowIdx] : row)
       )
 
-  // console.log('merging grids', { grid1, grid2, result })
-
   return result
 }
 
+let isFirstTick = true
 let score = -1
 let bgGrid = getGrid()
 let fgGrid
@@ -164,6 +150,22 @@ let currentPieceY
 let flipX
 let flipY
 let run = true
+let ticksTillFall = TICKS_TILL_FALL
+
+window['_state'] = {
+  score,
+  bgGrid,
+  fgGrid,
+  piece: {  
+    currentPiece,
+    currentPieceX,
+    currentPieceY,
+  },
+  flipX,
+  flipY,
+  run,
+  speed: MS_PER_TICK,
+}
 
 function initPiece() {
   score++
@@ -173,7 +175,10 @@ function initPiece() {
   fgGrid = getGrid()
   flipX = false
   flipY= true
+
+  window['_state'].fgGrid = fgGrid
 }
+
 
 function tick() {
   if (!run) {
@@ -182,29 +187,45 @@ function tick() {
 
   const oldY = currentPieceY
   const oldX = currentPieceX
-  
-  currentPieceY++
-  
+
   try {
-    fgGrid = drawPiece(fgGrid, currentPiece, oldX, oldY, true)
-    fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+    const reachedFallThreshold = ticksTillFall <= 0
 
-    // console.log({ bgGrid: bgGrid.map(a => a.join('')), fgGrid: fgGrid.map(a => a.join('')) })
-    // console.log({ bgGrid, fgGrid })
+    if (reachedFallThreshold || isFirstTick) {
 
-    if (collides(bgGrid, currentPiece, currentPieceX, currentPieceY)) {
-      bgGrid = drawPiece(bgGrid, currentPiece, currentPieceX, currentPieceY)
-      initPiece()
-      bgGrid = flushLines(bgGrid)
+      const metBottom = (currentPieceY + currentPiece.length > bgGrid.length - 1)
+      const hasCollision = metBottom || collides(bgGrid, drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY + 1))
+      
+      if (hasCollision) {
+        ticksTillFall = TICKS_TILL_FALL // ticksTillFall * .1 // courtesy move has less time
+      } else {
+        ticksTillFall = TICKS_TILL_FALL
+        currentPieceY++
+      }
+
+      fgGrid = drawPiece(fgGrid, currentPiece, oldX, oldY, true)
+      fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+
+      if (hasCollision) {
+        bgGrid = drawPiece(bgGrid, currentPiece, currentPieceX, currentPieceY)
+        initPiece()
+        bgGrid = flushLines(bgGrid)
+      }
+
+      window['_state'].bgGrid = bgGrid
+      renderGrid(mergeGrids(fgGrid, bgGrid))
+    } else {
+      ticksTillFall--
     }
 
-    renderGrid(mergeGrids(fgGrid, bgGrid))
+    window['_state'].ticksTillFall = ticksTillFall
   } catch (e) {
     clearInterval(tickerTimer)
     throw e
   }
 
-  window.tickerTimer = setTimeout(tick, 500)
+  isFirstTick = false
+  window.tickerTimer = setTimeout(tick, window['_state'].speed)
 }
 
 function cleanupOldInstance() {
@@ -214,27 +235,16 @@ function cleanupOldInstance() {
   document.body.style.padding = ''
   document.body.style.textAlign = 'center'
   clearTimeout(window.tickerTimer)
-
-  // const listeners = getEventListeners(window).keydown;
-
-  // if (!listeners) {
-  //   return
-  // }
-  
-  // let l = listeners.length;
-  // for (let i = l-1; i >=0; i--){
-  //   removeEventListener('keydown', listeners[i].listener);
-  // }
 }
 
 cleanupOldInstance()
 
 const output = document.createElement('pre')
-output.style.lineHeight = '.611'
+output.style.lineHeight = '.612'
 output.style.fontSize = '250%'
 output.style.display = 'inline-block'
 output.style.border = '1px solid #ccc'
-output.style.margin = '10px 0 0'
+output.style.margin = '3vh 0 0'
 document.body.appendChild(output)
 
 const stats = document.createElement('pre')
@@ -251,7 +261,37 @@ let touchedYBy = 0
 let pieceMoved = false
 let movingDimension = ''
 
-const TOUCH_MOVE_THRESHOLD = 30
+function controlPiece(direction, by = 1) {
+  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
+
+  switch (direction) {
+    case 'rotate':
+      currentPiece = rotatePiece(currentPiece, flipX, flipY)
+      flipX = !flipX
+      flipY = !flipY
+
+      if (currentPieceX + currentPiece[0].length > WIDTH) {
+        currentPieceX--
+      }
+      break
+    case 'left':
+      if (!collides(bgGrid, drawPiece(fgGrid, currentPiece, currentPieceX - by, currentPieceY)) && currentPieceX - by + 1 > 0) {
+        currentPieceX -= by
+      }
+      break
+    case 'right':
+      if (!collides(bgGrid, drawPiece(fgGrid, currentPiece, currentPieceX + by, currentPieceY)) && currentPieceX + currentPiece[0].length + by - 1 < WIDTH) {
+        currentPieceX += by
+      }
+      break
+    case 'down':
+      ticksTillFall -= FALL_SPEED * by
+      break
+  }
+
+  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+  renderGrid(mergeGrids(fgGrid, bgGrid))
+}
 
 document.addEventListener("touchstart", (e) => {
   e.preventDefault()
@@ -267,46 +307,28 @@ document.addEventListener("touchmove", (e) => {
   touchedYBy = Math.round((pageY - touchYStart) / TOUCH_MOVE_THRESHOLD)
   pieceMoved = touchedXBy || touchedYBy || pieceMoved
 
-  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
-
-  if ((!movingDimension || movingDimension === 'x') && touchedXBy < 0 && currentPieceX + touchedXBy + 1 > 0) {
-    currentPieceX += touchedXBy
+  if ((!movingDimension || movingDimension === 'x') && touchedXBy < 0) {
+    controlPiece('left', -touchedXBy)
     movingDimension = 'x'
   }
 
-  if ((!movingDimension || movingDimension === 'x') && touchedXBy > 0 && currentPieceX + currentPiece[0].length + touchedXBy - 1 < WIDTH) {
-    currentPieceX += touchedXBy
+  if ((!movingDimension || movingDimension === 'x') && touchedXBy > 0) {
+    controlPiece('right', touchedXBy)
     movingDimension = 'x'
   }
 
-  if ((!movingDimension || movingDimension === 'y') && touchedYBy > 0 && !collides(bgGrid, currentPiece, currentPieceX, currentPieceY + touchedYBy)) {
-    currentPieceY += touchedYBy
+  if ((!movingDimension || movingDimension === 'y') && touchedYBy > 0) {
+    controlPiece('down', touchedYBy)
     movingDimension = 'y'
   }
 
-  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
-  renderGrid(mergeGrids(fgGrid, bgGrid))
-  // console.log({ touchXStart, touchedXBy, pageX })
-
   touchXStart = touchedXBy ? pageX : touchXStart
   touchYStart = touchedYBy ? pageY : touchYStart
-  
 }, { passive: false });
 
 document.addEventListener('touchend', () => {
   if (!pieceMoved) {
-    fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
-
-    currentPiece = rotatePiece(currentPiece, flipX, flipY)
-    flipX = !flipX
-    flipY = !flipY
-
-    if (currentPieceX + currentPiece[0].length > WIDTH) {
-      currentPieceX--
-    }
-
-    fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
-    renderGrid(mergeGrids(fgGrid, bgGrid))
+    controlPiece('rotate')
   }
 
   pieceMoved = false
@@ -314,50 +336,36 @@ document.addEventListener('touchend', () => {
   movingDimension = ''
 })
 
-
 window.addEventListener('keydown', ({ key }) => {
   const control = key.toLowerCase()
 
   if (!['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p'].includes(control)) {
     return
-  }
-
-  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
+  }  
 
   if (control === 'arrowup') {
-    currentPiece = rotatePiece(currentPiece, flipX, flipY)
-    flipX = !flipX
-    flipY = !flipY
-
-    if (currentPieceX + currentPiece[0].length > WIDTH) {
-      currentPieceX--
-    }
+    controlPiece('rotate')
   }
 
-  if (control === 'arrowdown' && currentPieceY + currentPiece.length + 1 < HEIGHT) {
-    if (!collides(bgGrid, currentPiece, currentPieceX, currentPieceY + 1)) {
-      currentPieceY++
-    }
+  if (control === 'arrowdown') {
+    controlPiece('down')
   }
   
-  if (control === 'arrowleft' && currentPieceX > 0) {
-    currentPieceX--
+  if (control === 'arrowleft') {
+    controlPiece('left')
   }
 
   if (control === 'arrowright' && currentPieceX + currentPiece[0].length < WIDTH) {
-    currentPieceX++
+    controlPiece('right')
   }
 
   if (control === 'p') {
     run = !run
-    console.log('toggling run', run)
+
     if (run) {
       tick()
     }
   }
-
-  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
-  renderGrid(mergeGrids(fgGrid, bgGrid))
 })
     </script>
   </body>
