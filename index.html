@@ -11,6 +11,7 @@
   </head>
   <body>
     <script>
+
 const WIDTH = 12
 const HEIGHT = WIDTH * 2
 const EMPTY_BLOCK = ' '
@@ -20,6 +21,7 @@ const MS_PER_TICK = 1000 / 60 // ms for 60FPS
 const TICKS_TILL_FALL = 40
 const TOUCH_MOVE_THRESHOLD = 100
 const FALL_SPEED = 40
+const INITIAL_SPEED_COEFF = 1
 const PIECES = [
   [
     SOLID_BLOCK,
@@ -36,196 +38,232 @@ const PIECES = [
     `${SOLID_BLOCK} `,
     `${SOLID_BLOCK}${SOLID_BLOCK}`,
   ],
-  [
-    `${SOLID_BLOCK}${SOLID_BLOCK} `,
-    ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
-  ],
-  [
-    ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
-    `${SOLID_BLOCK}${SOLID_BLOCK} `,
-  ],
+  // [
+  //   `${SOLID_BLOCK}${SOLID_BLOCK} `,
+  //   ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
+  // ],
+  // [
+  //   ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
+  //   `${SOLID_BLOCK}${SOLID_BLOCK} `,
+  // ],
   [
     ` ${SOLID_BLOCK}`,
     ` ${SOLID_BLOCK}`,
     `${SOLID_BLOCK}${SOLID_BLOCK}`,
   ],
-  [
-    `${SOLID_BLOCK} `,
-    `${SOLID_BLOCK}${SOLID_BLOCK}`,
-    `${SOLID_BLOCK} `,
-  ],
+  // [
+  //   `${SOLID_BLOCK} `,
+  //   `${SOLID_BLOCK}${SOLID_BLOCK}`,
+  //   `${SOLID_BLOCK} `,
+  // ],
 ]
 
-const getRandomPiece = () => PIECES[Math.floor(Math.random() * PIECES.length)]
+class Tetris {
+  isFirstTick = true
+  score = -1
+  bgGrid = Tetris.getGrid()
+  fgGrid = undefined
+  currentPiece = undefined
+  currentPieceX = 0
+  currentPieceY = 0
+  flipX = false
+  flipY = false
+  run = true
+  ticksTillFall = TICKS_TILL_FALL
+  tickSpeedCoeff = INITIAL_SPEED_COEFF // lower number means faster
+  render = () => {}
 
-const getGrid = () => new Array(HEIGHT).fill(undefined).map(a => new Array(WIDTH).fill(EMPTY_BLOCK))
-
-function drawPiece(grid, piece, x, y, clear = false) {
-  const newGrid = [...grid.map(line => [...line])]
-  for (lineIndex in piece) {
-    const line = piece[lineIndex].split('')
-
-    for (rowIndex in line) {
-      const gridY = parseInt(lineIndex) + y
-      const gridX = parseInt(rowIndex) + x
-
-      if (newGrid[gridY] === undefined || newGrid[gridX] === undefined) {
-        continue
-      }
-
-      if (piece[lineIndex][rowIndex] === EMPTY_BLOCK) {
-        continue
-      }
-      
-      newGrid[gridY][gridX] = clear ? EMPTY_BLOCK : piece[lineIndex][rowIndex]
-    }
+  constructor(render) {
+    this.render = render
   }
 
-  return newGrid
-}
-
-function rotatePiece(piece, flipX, flipY) {
-  const result = new Array(piece[0].length).fill().map(a => new Array(piece.length).fill())
-  for (lineIdx in piece) {
-    const rows = piece[lineIdx].split('')
-    for (rowIdx in rows) {
-      result[rowIdx][lineIdx] = rows[rowIdx]
-    }
-  }
-  
-  return result.map(line => line.reverse().join(''))
-}
-
-function collides(grid1, grid2) {
-  for (let y = 0; y < grid1.length; y++) {
-    for (let x = 0; x < grid1[y].length; x++) {
-      if (grid1[y][x] !== EMPTY_BLOCK && grid2[y][x] !== EMPTY_BLOCK) {
-        return true
+  static rotatePiece(piece, flipX, flipY) {
+    const result = new Array(piece[0].length).fill().map(a => new Array(piece.length).fill())
+    for (let lineIdx in piece) {
+      const rows = piece[lineIdx].split('')
+      for (let rowIdx in rows) {
+        result[rowIdx][lineIdx] = rows[rowIdx]
       }
     }
-  }
-  return false
-}
-
-function flushLines(grid) {
-  const result = grid.filter((line) => !line.every(char => char === SOLID_BLOCK))
-  const linesFlushed = HEIGHT - result.length
-
-  if (linesFlushed > 0) {
-    const multiplier = linesFlushed * 10
-    score += linesFlushed * multiplier
-
-    const gridPadding = getGrid().slice(0, linesFlushed)
-
-    return [...gridPadding, ...result]
+    
+    return result.map(line => line.reverse().join(''))
   }
 
-  return result
+  static collides(grid1, grid2) {
+    for (let y = 0; y < grid1.length; y++) {
+      for (let x = 0; x < grid1[y].length; x++) {
+        if (grid1[y][x] !== EMPTY_BLOCK && grid2[y][x] !== EMPTY_BLOCK) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  static mergeGrids(grid1, grid2) {
+    const result = grid1
+      .map((line, lineIdx) =>
+        line.map((row, rowIdx) =>
+          grid2[lineIdx][rowIdx] !== EMPTY_BLOCK ? grid2[lineIdx][rowIdx] : row)
+        )
+
+    return result
+  }
+
+  static getRandomPiece = () => PIECES[Math.floor(Math.random() * PIECES.length)]
+
+  static getGrid = () => new Array(HEIGHT).fill(undefined).map(a => new Array(WIDTH).fill(EMPTY_BLOCK))
+
+  static drawPiece(grid, piece, x, y, clear = false) {
+    const newGrid = [...grid.map(line => [...line])]
+    for (let lineIndex in piece) {
+      const line = piece[lineIndex].split('')
+
+      for (let rowIndex in line) {
+        const gridY = parseInt(lineIndex) + y
+        const gridX = parseInt(rowIndex) + x
+
+        if (newGrid[gridY] === undefined || newGrid[gridX] === undefined) {
+          continue
+        }
+
+        if (piece[lineIndex][rowIndex] === EMPTY_BLOCK) {
+          continue
+        }
+        
+        newGrid[gridY][gridX] = clear ? EMPTY_BLOCK : piece[lineIndex][rowIndex]
+      }
+    }
+
+    return newGrid
+  }
+
+  initPiece() {
+    this.score++
+    this.currentPiece = Tetris.getRandomPiece()
+    this.currentPieceX = WIDTH / 2 - 2
+    this.currentPieceY = -1
+    this.fgGrid = Tetris.getGrid()
+    this.flipX = false
+    this.flipY= true
+  }
+
+  flushLines(grid) {
+    const result = grid.filter((line) => !line.every(char => char === SOLID_BLOCK))
+    const linesFlushed = HEIGHT - result.length
+
+    if (linesFlushed > 0) {
+      const multiplier = linesFlushed * 10
+      this.score += linesFlushed * multiplier
+
+      const minSpeedCoeff = .1
+      // this.tickSpeedCoeff = Math.max(INITIAL_SPEED_COEFF - this.score / 500, minSpeedCoeff)
+
+      const gridPadding = Tetris.getGrid().slice(0, linesFlushed)
+
+      return [...gridPadding, ...result]
+    }
+
+    return result
+  }
+
+  controlPiece(direction, by = 1) {
+    this.fgGrid = Tetris.drawPiece(this.fgGrid, this.currentPiece, this.currentPieceX, this.currentPieceY, true)
+
+    switch (direction) {
+      case 'rotate':
+        this.currentPiece = Tetris.rotatePiece(this.currentPiece, this.flipX, this.flipY)
+        this.flipX = !this.flipX
+        this.flipY = !this.flipY
+
+        if (this.currentPieceX + this.currentPiece[0].length > WIDTH) {
+          this.currentPieceX--
+        }
+        break
+      case 'left':
+        if (!Tetris.collides(this.bgGrid, Tetris.drawPiece(
+          this.fgGrid,
+          this.currentPiece,
+          this.currentPieceX - by,
+          this.currentPieceY
+        )) && this.currentPieceX - by + 1 > 0) {
+          this.currentPieceX -= by
+        }
+        break
+      case 'right':
+        if (!Tetris.collides(this.bgGrid, Tetris.drawPiece(
+          this.fgGrid,
+          this.currentPiece,
+          this.currentPieceX + by,
+          this.currentPieceY
+        )) && this.currentPieceX + this.currentPiece[0].length + by - 1 < WIDTH) {
+          this.currentPieceX += by
+        }
+        break
+      case 'down':
+        this.ticksTillFall -= FALL_SPEED * by
+        break
+    }
+
+    this.fgGrid = Tetris.drawPiece(this.fgGrid, this.currentPiece, this.currentPieceX, this.currentPieceY)
+    this.render(Tetris.mergeGrids(this.fgGrid, this.bgGrid))
+  }
 }
 
 function renderGrid(grid) {
   const gridString = grid.map(line => line.join('')).join('\n')
   output.innerHTML = gridString
 
-  stats.innerHTML = `score: ${score} ${scoreAnimal}`
+  stats.innerHTML = `score: ${game.score} ${scoreAnimal}`
 }
 
-function mergeGrids(grid1, grid2) {
-  const result = grid1
-    .map((line, lineIdx) =>
-      line.map((row, rowIdx) =>
-        grid2[lineIdx][rowIdx] !== EMPTY_BLOCK ? grid2[lineIdx][rowIdx] : row)
-      )
-
-  return result
-}
-
-let isFirstTick = true
-let score = -1
-let bgGrid = getGrid()
-let fgGrid
-let currentPiece
-let currentPieceX
-let currentPieceY
-let flipX
-let flipY
-let run = true
-let ticksTillFall = TICKS_TILL_FALL
-
-window['_state'] = {
-  score,
-  bgGrid,
-  fgGrid,
-  piece: {  
-    currentPiece,
-    currentPieceX,
-    currentPieceY,
-  },
-  flipX,
-  flipY,
-  run,
-  speed: MS_PER_TICK,
-}
-
-function initPiece() {
-  score++
-  currentPiece = getRandomPiece()
-  currentPieceX = WIDTH / 2 - 2
-  currentPieceY = -1
-  fgGrid = getGrid()
-  flipX = false
-  flipY= true
-
-  window['_state'].fgGrid = fgGrid
-}
-
+const game = new Tetris(renderGrid)
 
 function tick() {
-  if (!run) {
+  if (!game.run) {
     return
   }
 
-  const oldY = currentPieceY
-  const oldX = currentPieceX
+  const oldY = game.currentPieceY
+  const oldX = game.currentPieceX
 
   try {
-    const reachedFallThreshold = ticksTillFall <= 0
+    const reachedFallThreshold = game.ticksTillFall <= 0
 
-    if (reachedFallThreshold || isFirstTick) {
+    if (reachedFallThreshold || game.isFirstTick) {
 
-      const metBottom = (currentPieceY + currentPiece.length > bgGrid.length - 1)
-      const hasCollision = metBottom || collides(bgGrid, drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY + 1))
+      const metBottom = (game.currentPieceY + game.currentPiece.length > game.bgGrid.length - 1)
+      const hasCollision = metBottom || Tetris.collides(game.bgGrid, Tetris.drawPiece(
+        game.fgGrid, game.currentPiece, game.currentPieceX, game.currentPieceY + 1)
+      )
       
       if (hasCollision) {
-        ticksTillFall = TICKS_TILL_FALL // ticksTillFall * .1 // courtesy move has less time
+        game.ticksTillFall = 0
       } else {
-        ticksTillFall = TICKS_TILL_FALL
-        currentPieceY++
+        game.ticksTillFall = TICKS_TILL_FALL * game.tickSpeedCoeff
+        game.currentPieceY++
       }
 
-      fgGrid = drawPiece(fgGrid, currentPiece, oldX, oldY, true)
-      fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
+      game.fgGrid = Tetris.drawPiece(game.fgGrid, game.currentPiece, oldX, oldY, true)
+      game.fgGrid = Tetris.drawPiece(game.fgGrid, game.currentPiece, game.currentPieceX, game.currentPieceY)
 
       if (hasCollision) {
-        bgGrid = drawPiece(bgGrid, currentPiece, currentPieceX, currentPieceY)
-        initPiece()
-        bgGrid = flushLines(bgGrid)
+        game.bgGrid = Tetris.drawPiece(game.bgGrid, game.currentPiece, game.currentPieceX, game.currentPieceY)
+        game.initPiece()
+        game.bgGrid = game.flushLines(game.bgGrid)
       }
 
-      window['_state'].bgGrid = bgGrid
-      renderGrid(mergeGrids(fgGrid, bgGrid))
+      renderGrid(Tetris.mergeGrids(game.fgGrid, game.bgGrid))
     } else {
-      ticksTillFall--
+      game.ticksTillFall--
     }
-
-    window['_state'].ticksTillFall = ticksTillFall
   } catch (e) {
-    clearInterval(tickerTimer)
+    clearInterval(window.tickerTimer)
     throw e
   }
 
-  isFirstTick = false
-  window.tickerTimer = setTimeout(tick, window['_state'].speed)
+  game.isFirstTick = false
+  window.tickerTimer = setTimeout(tick, game.speed)
 }
 
 function cleanupOldInstance() {
@@ -250,7 +288,7 @@ document.body.appendChild(output)
 const stats = document.createElement('pre')
 document.body.appendChild(stats)
 
-initPiece()
+game.initPiece()
 tick()
 
 
@@ -260,38 +298,6 @@ let touchedXBy = 0
 let touchedYBy = 0
 let pieceMoved = false
 let movingDimension = ''
-
-function controlPiece(direction, by = 1) {
-  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY, true)
-
-  switch (direction) {
-    case 'rotate':
-      currentPiece = rotatePiece(currentPiece, flipX, flipY)
-      flipX = !flipX
-      flipY = !flipY
-
-      if (currentPieceX + currentPiece[0].length > WIDTH) {
-        currentPieceX--
-      }
-      break
-    case 'left':
-      if (!collides(bgGrid, drawPiece(fgGrid, currentPiece, currentPieceX - by, currentPieceY)) && currentPieceX - by + 1 > 0) {
-        currentPieceX -= by
-      }
-      break
-    case 'right':
-      if (!collides(bgGrid, drawPiece(fgGrid, currentPiece, currentPieceX + by, currentPieceY)) && currentPieceX + currentPiece[0].length + by - 1 < WIDTH) {
-        currentPieceX += by
-      }
-      break
-    case 'down':
-      ticksTillFall -= FALL_SPEED * by
-      break
-  }
-
-  fgGrid = drawPiece(fgGrid, currentPiece, currentPieceX, currentPieceY)
-  renderGrid(mergeGrids(fgGrid, bgGrid))
-}
 
 document.addEventListener("touchstart", (e) => {
   e.preventDefault()
@@ -308,17 +314,17 @@ document.addEventListener("touchmove", (e) => {
   pieceMoved = touchedXBy || touchedYBy || pieceMoved
 
   if ((!movingDimension || movingDimension === 'x') && touchedXBy < 0) {
-    controlPiece('left', -touchedXBy)
+    game.controlPiece('left', -touchedXBy)
     movingDimension = 'x'
   }
 
   if ((!movingDimension || movingDimension === 'x') && touchedXBy > 0) {
-    controlPiece('right', touchedXBy)
+    game.controlPiece('right', touchedXBy)
     movingDimension = 'x'
   }
 
   if ((!movingDimension || movingDimension === 'y') && touchedYBy > 0) {
-    controlPiece('down', touchedYBy)
+    game.controlPiece('down', touchedYBy)
     movingDimension = 'y'
   }
 
@@ -328,7 +334,7 @@ document.addEventListener("touchmove", (e) => {
 
 document.addEventListener('touchend', () => {
   if (!pieceMoved) {
-    controlPiece('rotate')
+    game.controlPiece('rotate')
   }
 
   pieceMoved = false
@@ -339,30 +345,30 @@ document.addEventListener('touchend', () => {
 window.addEventListener('keydown', ({ key }) => {
   const control = key.toLowerCase()
 
-  if (!['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p'].includes(control)) {
+  if (!['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'p', 'w', 'a', 's', 'd'].includes(control)) {
     return
   }  
 
-  if (control === 'arrowup') {
-    controlPiece('rotate')
+  if (control === 'arrowup' || control === 'w') {
+    game.controlPiece('rotate')
   }
 
-  if (control === 'arrowdown') {
-    controlPiece('down')
+  if (control === 'arrowdown' || control === 's') {
+    game.controlPiece('down')
   }
   
-  if (control === 'arrowleft') {
-    controlPiece('left')
+  if (control === 'arrowleft' || control === 'a') {
+    game.controlPiece('left')
   }
 
-  if (control === 'arrowright' && currentPieceX + currentPiece[0].length < WIDTH) {
-    controlPiece('right')
+  if (control === 'arrowright' || control === 'd') {
+    game.controlPiece('right')
   }
 
   if (control === 'p') {
-    run = !run
+    game.run = !game.run
 
-    if (run) {
+    if (game.run) {
       tick()
     }
   }
