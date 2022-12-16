@@ -4,31 +4,53 @@
     <style>
       body {
         font-size: 2vh;
+        display: flex;
+        gap: 30px;
       }
-      @media(prefers-color-scheme:dark){body{background-color:rgb(50,54,57);}}
+      /*@media(prefers-color-scheme:dark){body{background-color:rgb(50,54,57);}}*/
+
+      .text-renderer .grid {
+        line-height: .612;
+        font-size: 250%;
+        display: inline-block;
+        border: 1px solid #ccc;
+        margin: 3vh 0 0;
+      }
+
+      .canvas-renderer {
+        border: 1px solid salmon;
+      }
     </style>
     <title>Tetris</title>
   </head>
   <body>
+    <div class="text-renderer">
+      <pre class="grid"></pre>
+      <pre class="stats"></pre>
+    </div>
+    <div class="canvas-renderer" style="width: 400px; height: 800px;">
+      <canvas width="400" height="800" />
+    </div>
     <script>
+const output = document.querySelector('.text-renderer .grid')
 
 const WIDTH = 12
 const HEIGHT = WIDTH * 2
 const EMPTY_BLOCK = ' '
-const SOLID_BLOCK = '▢' // ▦ ▣
-const scoreAnimal = '🐒'
+const SOLID_BLOCK = '▣' // ▦ ▣ ▢
+const scoreAnimal = '🐫'
 const MS_PER_TICK = 1000 / 60 // ms for 60FPS
 const TICKS_TILL_FALL = 40
 const TOUCH_MOVE_THRESHOLD = 100
 const FALL_SPEED = 40
-const INITIAL_SPEED_COEFF = 1
+const INITIAL_SPEED_COEFF = 1.5
 const PIECES = [
-  [
-    SOLID_BLOCK,
-    SOLID_BLOCK,
-    SOLID_BLOCK,
-    SOLID_BLOCK,
-  ],
+  // [
+  //   SOLID_BLOCK,
+  //   SOLID_BLOCK,
+  //   SOLID_BLOCK,
+  //   SOLID_BLOCK,
+  // ],
   [
     `${SOLID_BLOCK}${SOLID_BLOCK}`,
     `${SOLID_BLOCK}${SOLID_BLOCK}`,
@@ -46,11 +68,11 @@ const PIECES = [
   //   ` ${SOLID_BLOCK}${SOLID_BLOCK}`,
   //   `${SOLID_BLOCK}${SOLID_BLOCK} `,
   // ],
-  [
-    ` ${SOLID_BLOCK}`,
-    ` ${SOLID_BLOCK}`,
-    `${SOLID_BLOCK}${SOLID_BLOCK}`,
-  ],
+  // [
+  //   ` ${SOLID_BLOCK}`,
+  //   ` ${SOLID_BLOCK}`,
+  //   `${SOLID_BLOCK}${SOLID_BLOCK}`,
+  // ],
   // [
   //   `${SOLID_BLOCK} `,
   //   `${SOLID_BLOCK}${SOLID_BLOCK}`,
@@ -208,6 +230,53 @@ class Tetris {
     this.fgGrid = Tetris.drawPiece(this.fgGrid, this.currentPiece, this.currentPieceX, this.currentPieceY)
     this.render(Tetris.mergeGrids(this.fgGrid, this.bgGrid))
   }
+
+  tick() {
+    if (!this.run) {
+      return
+    }
+
+    const oldY = this.currentPieceY
+    const oldX = this.currentPieceX
+
+    try {
+      const reachedFallThreshold = this.ticksTillFall <= 0
+
+      if (reachedFallThreshold || this.isFirstTick) {
+
+        const metBottom = (this.currentPieceY + this.currentPiece.length > this.bgGrid.length - 1)
+        const hasCollision = metBottom || Tetris.collides(this.bgGrid, Tetris.drawPiece(
+          this.fgGrid, this.currentPiece, this.currentPieceX, this.currentPieceY + 1)
+        )
+        
+        if (hasCollision) {
+          this.ticksTillFall = 0
+        } else {
+          this.ticksTillFall = TICKS_TILL_FALL * this.tickSpeedCoeff
+          this.currentPieceY++
+        }
+
+        this.fgGrid = Tetris.drawPiece(this.fgGrid, this.currentPiece, oldX, oldY, true)
+        this.fgGrid = Tetris.drawPiece(this.fgGrid, this.currentPiece, this.currentPieceX, this.currentPieceY)
+
+        if (hasCollision) {
+          this.bgGrid = Tetris.drawPiece(this.bgGrid, this.currentPiece, this.currentPieceX, this.currentPieceY)
+          this.initPiece()
+          this.bgGrid = this.flushLines(this.bgGrid)
+        }
+
+        this.render(Tetris.mergeGrids(this.fgGrid, this.bgGrid))
+      } else {
+        this.ticksTillFall--
+      }
+    } catch (e) {
+      clearInterval(window.tickerTimer)
+      throw e
+    }
+
+    this.isFirstTick = false
+    window.tickerTimer = setTimeout(() => this.tick(), this.speed)
+  }
 }
 
 function renderGrid(grid) {
@@ -217,79 +286,35 @@ function renderGrid(grid) {
   stats.innerHTML = `score: ${game.score} ${scoreAnimal}`
 }
 
-const game = new Tetris(renderGrid)
+const canvas = document.querySelector('.canvas-renderer canvas')
+const canvasCtx = canvas.getContext('2d')
+const BLOCK_R = 33.3333
 
-function tick() {
-  if (!game.run) {
-    return
-  }
+function renderCanvas(grid) {
+  canvasCtx.clearRect(0, 0, 400, 800)
 
-  const oldY = game.currentPieceY
-  const oldX = game.currentPieceX
-
-  try {
-    const reachedFallThreshold = game.ticksTillFall <= 0
-
-    if (reachedFallThreshold || game.isFirstTick) {
-
-      const metBottom = (game.currentPieceY + game.currentPiece.length > game.bgGrid.length - 1)
-      const hasCollision = metBottom || Tetris.collides(game.bgGrid, Tetris.drawPiece(
-        game.fgGrid, game.currentPiece, game.currentPieceX, game.currentPieceY + 1)
-      )
-      
-      if (hasCollision) {
-        game.ticksTillFall = 0
-      } else {
-        game.ticksTillFall = TICKS_TILL_FALL * game.tickSpeedCoeff
-        game.currentPieceY++
+  for (let row = 0; row < grid.length; row++) {
+    for (let column = 0; column < grid[row].length; column++) {
+      // console.log('hmm', { row, column })
+      if (grid[row][column] === SOLID_BLOCK) {
+        // console.log('block at', { row, column })
+        canvasCtx.fillRect(column * BLOCK_R, row * BLOCK_R, BLOCK_R - 2, BLOCK_R - 2)
       }
-
-      game.fgGrid = Tetris.drawPiece(game.fgGrid, game.currentPiece, oldX, oldY, true)
-      game.fgGrid = Tetris.drawPiece(game.fgGrid, game.currentPiece, game.currentPieceX, game.currentPieceY)
-
-      if (hasCollision) {
-        game.bgGrid = Tetris.drawPiece(game.bgGrid, game.currentPiece, game.currentPieceX, game.currentPieceY)
-        game.initPiece()
-        game.bgGrid = game.flushLines(game.bgGrid)
-      }
-
-      renderGrid(Tetris.mergeGrids(game.fgGrid, game.bgGrid))
-    } else {
-      game.ticksTillFall--
     }
-  } catch (e) {
-    clearInterval(window.tickerTimer)
-    throw e
   }
-
-  game.isFirstTick = false
-  window.tickerTimer = setTimeout(tick, game.speed)
 }
 
-function cleanupOldInstance() {
-  document.body.innerHTML = ''
-  document.body.style.backgroundColor = '#fff'
-  document.body.style.margin = ''
-  document.body.style.padding = ''
-  document.body.style.textAlign = 'center'
-  clearTimeout(window.tickerTimer)
-}
+const game = new Tetris((gridState) => {
+  // console.log('renderer', gridState)
+  renderGrid(gridState)
+  renderCanvas(gridState)
+})
+window.game = game
 
-cleanupOldInstance()
-
-const output = document.createElement('pre')
-output.style.lineHeight = '.612'
-output.style.fontSize = '250%'
-output.style.display = 'inline-block'
-output.style.border = '1px solid #ccc'
-output.style.margin = '3vh 0 0'
-document.body.appendChild(output)
-
-const stats = document.createElement('pre')
-document.body.appendChild(stats)
+const stats = document.querySelector('.text-renderer .stats')
 
 game.initPiece()
-tick()
+game.tick()
 
 
 let touchXStart = 0
@@ -369,7 +394,7 @@ window.addEventListener('keydown', ({ key }) => {
     game.run = !game.run
 
     if (game.run) {
-      tick()
+      game.tick()
     }
   }
 })
